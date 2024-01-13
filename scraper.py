@@ -1,4 +1,4 @@
-import re, requests, pandas as pd, time, logging
+import re, requests, pandas as pd, logging
 
 import seaborn as sns
 import matplotlib.pyplot as plt
