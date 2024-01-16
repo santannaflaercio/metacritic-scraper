@@ -65,7 +65,8 @@ def test_scrape_page():
         with patch('scraper.get_movie_data', return_value=mock_movie_data) as mock_get_movie_data:
             page_number = 1
             result = scraper.scrape_page(page_number)
-            mock_get_page_content.assert_called_once_with(f"{scraper.BASE_URL}?page={page_number}")
+            mock_get_page_content.assert_called_once_with(
+                f"{scraper.BASE_URL}?page={page_number}")
             assert mock_get_movie_data.call_count == len(mock_movie_cards)
             assert result == [mock_movie_data for _ in mock_movie_cards]
 
@@ -81,7 +82,8 @@ def test_write_to_csv(tmp_path):
 
         combined_df = pd.concat([existing_df, new_df])
 
-        final_df = combined_df.drop_duplicates(subset=["name", "year"], keep="first")
+        final_df = combined_df.drop_duplicates(
+            subset=["name", "year"], keep="first")
         final_df = final_df.sort_values(by=["metascore"], ascending=False)
         final_df.to_csv(tmpfile, index=False)
 
@@ -137,7 +139,6 @@ def test_count_movies_per_year():
         {"name": "Movie3", "year": 2001, "metascore": 95},
     ])
 
-    result = scraper.count_movies_per_year(df)
+    result = scraper.top_rated_per_year(df)
     assert result.loc[2001] == 2
     assert result.loc[2002] == 1
-
