@@ -1,3 +1,4 @@
+import os
 import re
 import requests
 import requests_cache
@@ -20,11 +21,14 @@ logging.basicConfig(
 USER_AGENT = {"User-Agent": "Mozilla/5.0"}
 BASE_URL = "https://www.metacritic.com/browse/movie/"
 
+retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
+adapter = HTTPAdapter(max_retries=retries,
+                      pool_connections=50, pool_maxsize=50)
+
 # Cache the requests for 2 hours
 # CachedSession is thread-safe
 session = requests_cache.CachedSession('movie_cache', expire_after=7200)
-retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
-adapter = HTTPAdapter(max_retries=retries)
+session.mount('http://', adapter)
 session.mount("https://", adapter)
 session.headers.update(USER_AGENT)
 
@@ -132,7 +136,9 @@ def main():
     # Scraping movies
     tasks = []
     total_pages = get_total_pages()
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    num_workers = os.cpu_count() * 2
+
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
         for page_num in range(total_pages):
             future = executor.submit(scrape_page, page_num)
             tasks.append(future)
