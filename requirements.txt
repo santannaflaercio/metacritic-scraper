@@ -2,6 +2,5 @@ beautifulsoup4==4.12.2
 requests==2.31.0
 requests_cache==1.1.1
 pandas==2.1.4
-seaborn==0.13.1
-matplotlib==3.8.2
+plotly==5.3.1
 pytest==7.4.4

@@ -10,7 +10,7 @@ This repository is a part of my portfolio and includes the source code for a scr
 - Python 3.x: Primary programming language.
 - BeautifulSoup: Used for HTML parsing.
 - Requests: For making HTTP requests.
-- Seaborn and Matplotlib: For data visualization and generating insightful graphs.
+- Potly: For data visualization.
 
 ## Legal Disclaimer
 

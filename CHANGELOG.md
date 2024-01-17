@@ -1,3 +1,7 @@
+## (1.1.3)
+
+- Created interactive graphs using Plotly (@santannaflaercio)
+
 ## (1.1.2)
 
 - Updated code to improve performance (@santannaflaercio)
