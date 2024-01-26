@@ -12,7 +12,6 @@ from requests.packages.urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 USER_AGENT = {"User-Agent": "Mozilla/5.0"}
@@ -23,7 +22,7 @@ adapter = HTTPAdapter(max_retries=retries, pool_connections=50, pool_maxsize=50)
 
 # Cache the requests for 2 hours
 # CachedSession is thread-safe
-session = requests_cache.CachedSession("../cache/movie_cache", expire_after=7200)
+session = requests_cache.CachedSession("cache/movie_cache", expire_after=7200)
 session.mount("http://", adapter)
 session.mount("https://", adapter)
 
@@ -34,7 +33,7 @@ def get_page_content(url):
     try:
         response = session.get(url)
         response.raise_for_status()
-        soup = BeautifulSoup(response.content, "html.parser", from_encoding=response.encoding)
+        soup = BeautifulSoup(response.content, "html.parser")
         return soup
     except requests.RequestException as e:
         logging.error(f"Request error when fetching: {e}")
@@ -83,7 +82,7 @@ def scrape_page(page_number):
 
 def write_to_csv(new_movies):
     try:
-        existing_df = pd.read_csv("../output/movies.csv")
+        existing_df = pd.read_csv("output/movies.csv")
     except FileNotFoundError:
         existing_df = pd.DataFrame(columns=["name", "year", "rating"])
 
@@ -93,7 +92,7 @@ def write_to_csv(new_movies):
     final_df = combined_df.drop_duplicates(subset=["name", "year"], keep="first")
     final_df = final_df.sort_values(by=["rating"], ascending=False)
 
-    final_df.to_csv("../output/movies.csv", index=False)
+    final_df.to_csv("output/movies.csv", index=False)
 
 
 def get_total_pages():
@@ -176,7 +175,7 @@ def main():
     logging.info("Scraping complete. Data saved to movies.csv")
 
     # Loading data from CSV
-    movies_df = pd.read_csv("../output/movies.csv")
+    movies_df = pd.read_csv("output/movies.csv")
 
     # Creating charts
     create_distribution_ratings_histogram_chart(movies_df).show()

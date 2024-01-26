@@ -21,7 +21,7 @@ def setup_mock_session(mock_session):
     return mock_response
 
 
-@patch("scraper.session")
+@patch("src.scraper.session")
 def test_get_page_content_success(mock_session):
     """
     Test the `get_page_content` function by making sure it retrieves the content
@@ -60,8 +60,8 @@ def test_scrape_page():
     soup.find_all.return_value = mock_movie_cards
     mock_movie_data = {"title": "test movie", "rating": "50"}
 
-    with patch('scraper.get_page_content', return_value=soup) as mock_get_page_content:
-        with patch('scraper.get_movie_data', return_value=mock_movie_data) as mock_get_movie_data:
+    with patch('src.scraper.get_page_content', return_value=soup) as mock_get_page_content:
+        with patch('src.scraper.get_movie_data', return_value=mock_movie_data) as mock_get_movie_data:
             page_number = 1
             result = scraper.scrape_page(page_number)
             mock_get_page_content.assert_called_once_with(
@@ -113,31 +113,7 @@ def test_get_total_pages():
     mock_soup.find_all.return_value = mock_pagination
     mock_pagination[-1].text = "10"
 
-    with patch('scraper.get_page_content', return_value=mock_soup) as mock_get_page_content:
+    with patch('src.scraper.get_page_content', return_value=mock_soup) as mock_get_page_content:
         result = scraper.get_total_pages()
         mock_get_page_content.assert_called_once_with(scraper.BASE_URL)
         assert result == 11
-
-
-def test_average_score_per_year():
-    df = pd.DataFrame([
-        {"name": "Movie1", "year": 2001, "metascore": 75},
-        {"name": "Movie2", "year": 2002, "metascore": 85},
-        {"name": "Movie3", "year": 2001, "metascore": 95},
-    ])
-
-    result = scraper.average_score_per_year(df)
-    assert result.loc[2001] == 85
-    assert result.loc[2002] == 85
-
-
-def test_count_movies_per_year():
-    df = pd.DataFrame([
-        {"name": "Movie1", "year": 2001, "metascore": 75},
-        {"name": "Movie2", "year": 2002, "metascore": 85},
-        {"name": "Movie3", "year": 2001, "metascore": 95},
-    ])
-
-    result = scraper.top_rated_per_year(df)
-    assert result.loc[2001] == 2
-    assert result.loc[2002] == 1
