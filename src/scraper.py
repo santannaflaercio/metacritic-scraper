@@ -93,7 +93,7 @@ def write_to_csv(new_movies):
     final_df = combined_df.drop_duplicates(subset=["name", "year"], keep="first")
     final_df = final_df.sort_values(by=["rating"], ascending=False)
 
-    final_df.to_csv("movies.csv", index=False)
+    final_df.to_csv("../output/movies.csv", index=False)
 
 
 def get_total_pages():
