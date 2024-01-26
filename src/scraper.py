@@ -23,7 +23,7 @@ adapter = HTTPAdapter(max_retries=retries, pool_connections=50, pool_maxsize=50)
 
 # Cache the requests for 2 hours
 # CachedSession is thread-safe
-session = requests_cache.CachedSession("movie_cache", expire_after=7200)
+session = requests_cache.CachedSession("../cache/movie_cache", expire_after=7200)
 session.mount("http://", adapter)
 session.mount("https://", adapter)
 
@@ -83,7 +83,7 @@ def scrape_page(page_number):
 
 def write_to_csv(new_movies):
     try:
-        existing_df = pd.read_csv("movies.csv")
+        existing_df = pd.read_csv("../output/movies.csv")
     except FileNotFoundError:
         existing_df = pd.DataFrame(columns=["name", "year", "rating"])
 
@@ -176,7 +176,7 @@ def main():
     logging.info("Scraping complete. Data saved to movies.csv")
 
     # Loading data from CSV
-    movies_df = pd.read_csv("movies.csv")
+    movies_df = pd.read_csv("../output/movies.csv")
 
     # Creating charts
     create_distribution_ratings_histogram_chart(movies_df).show()

@@ -1,11 +1,10 @@
-from concurrent.futures import Future
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import patch, Mock
 
 import pandas as pd
 import pytest
 from bs4 import BeautifulSoup
 
-import scraper
+from src import scraper
 
 # Constants for test data
 TEST_URL = "https://example.com"
