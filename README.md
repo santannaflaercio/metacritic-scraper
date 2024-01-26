@@ -14,6 +14,7 @@ academic research.
 - `BeautifulSoup`: Used for HTML parsing.
 - `requests_cache`: For making HTTP requests.
 - `plotly`: For data visualization.
+- `pytest`: For unit testing.
 
 ## Legal Disclaimer
 
@@ -51,7 +52,7 @@ purposes.
 
 What things you need to install the software and how to install them:
 
-- Python 3.x
+- Python 3.11 or higher
 - pip (Python package installer)
 
 ### Installation
