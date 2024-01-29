@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 
 from requests.exceptions import HTTPError
 
-from src.scraper import Scraper, MovieScraper
+from src.scraper import Scraper
 
 
 class TestScraper(unittest.TestCase):

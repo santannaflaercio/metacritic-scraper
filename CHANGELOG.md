@@ -1,3 +1,7 @@
+## (1.2.1)
+
+- Added an API to access the data (@santannaflaercio)
+
 ## (1.2.0)
 
 - Added database to store data (@santannaflaercio)

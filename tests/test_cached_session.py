@@ -6,7 +6,7 @@ from requests.exceptions import ConnectionError
 @pytest.fixture
 def cached_session():
     """Fixture to create a CachedSession."""
-    session = requests_cache.CachedSession('./cache/movie_cache', expire_after=7200)
+    session = requests_cache.CachedSession('../cache/movie_cache', expire_after=7200)
     yield session
     session.cache.clear()
 

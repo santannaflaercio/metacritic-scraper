@@ -19,7 +19,7 @@ class Scraper:
         self.BASE_URL = "https://www.metacritic.com/browse/movie/"
         self.retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
         self.adapter = HTTPAdapter(max_retries=self.retries, pool_connections=50, pool_maxsize=50)
-        self.session = requests_cache.CachedSession("./cache/movie_cache", expire_after=7200)
+        self.session = requests_cache.CachedSession("../cache/movie_cache", expire_after=7200)
         self.session.mount("http://", self.adapter)
         self.session.mount("https://", self.adapter)
         self.session.headers.update(self.USER_AGENT)
@@ -38,7 +38,7 @@ class Scraper:
     def get_movie_data(movie_html):
         try:
             title_element = movie_html.find("h3", class_="c-finderProductCard_titleHeading")
-            title = re.sub(r'^\d+\.\s', '', title_element.text.strip().upper()) if title_element else None
+            title = title_element.text.split(".", 1)[1].strip().upper() if title_element else None
 
             meta_element = movie_html.find("div", class_="c-finderProductCard_meta")
             year = int(re.search(r'\d{4}', meta_element.text).group()) if meta_element else None
@@ -83,23 +83,19 @@ class DataWriter:
         self.engine = create_engine(f'postgresql://{username}:{password}@localhost:5432/postgres')
 
     def write_to_postgres(self, new_movies):
-        new_df = pd.DataFrame(new_movies, columns=["name", "year", "metascore"])
+        new_df = pd.DataFrame(new_movies, columns=["title", "year", "metascore"])
 
-        # Load existing data from PostgreSQL table if it exists
         try:
             existing_df = pd.read_sql_table('movies', self.engine)
         except ValueError:
-            existing_df = pd.DataFrame(columns=["name", "year", "metascore"])
+            existing_df = pd.DataFrame(columns=["title", "year", "metascore"])
 
-        # Combine new data with existing data
         combined_df = pd.concat([existing_df, new_df])
 
-        # Remove duplicates and sort
-        final_df = combined_df.drop_duplicates(subset=["name", "year"], keep="first")
+        final_df = combined_df.drop_duplicates(subset=["title", "year"], keep="first")
         final_df = final_df.dropna(inplace=False)
         final_df = final_df.sort_values(by=["metascore"], ascending=False)
 
-        # Write final DataFrame to PostgreSQL table, replacing existing content
         final_df.to_sql('movies', self.engine, schema='projects', if_exists='replace', index=False)
 
 
