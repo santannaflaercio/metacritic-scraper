@@ -2,5 +2,6 @@ beautifulsoup4==4.12.2
 requests==2.31.0
 requests_cache==1.1.1
 pandas==2.1.4
-plotly~=5.18
 pytest==7.4.4
+sqlalchemy==2.0.25
+psycopg2==2.9.9

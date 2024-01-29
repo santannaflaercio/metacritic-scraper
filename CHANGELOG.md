@@ -1,3 +1,7 @@
+## (1.2.0)
+
+- Added database to store data (@santannaflaercio)
+
 ## (1.1.3)
 
 - Created interactive graphs using Plotly (@santannaflaercio)

@@ -1,187 +1,140 @@
+import logging
 import os
 import re
-import requests
-import requests_cache
-import pandas as pd
-import logging
-
-import plotly.express as px
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-
-from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
-USER_AGENT = {"User-Agent": "Mozilla/5.0"}
-BASE_URL = "https://www.metacritic.com/browse/movie/"
-
-retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
-adapter = HTTPAdapter(max_retries=retries, pool_connections=50, pool_maxsize=50)
-
-# Cache the requests for 2 hours
-# CachedSession is thread-safe
-session = requests_cache.CachedSession("cache/movie_cache", expire_after=7200)
-session.mount("http://", adapter)
-session.mount("https://", adapter)
-
-session.headers.update(USER_AGENT)
+import pandas as pd
+import requests
+import requests_cache
+from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+from sqlalchemy import create_engine
 
 
-def get_page_content(url):
-    try:
-        response = session.get(url)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, "html.parser")
-        return soup
-    except requests.RequestException as e:
-        logging.error(f"Request error when fetching: {e}")
-    return None
+class Scraper:
+    def __init__(self):
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+        self.USER_AGENT = {"User-Agent": "Mozilla/5.0"}
+        self.BASE_URL = "https://www.metacritic.com/browse/movie/"
+        self.retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
+        self.adapter = HTTPAdapter(max_retries=self.retries, pool_connections=50, pool_maxsize=50)
+        self.session = requests_cache.CachedSession("./cache/movie_cache", expire_after=7200)
+        self.session.mount("http://", self.adapter)
+        self.session.mount("https://", self.adapter)
+        self.session.headers.update(self.USER_AGENT)
 
-
-def get_movie_data(movie):
-    def _get_value(el, el_class):
+    def get_page_content(self, url):
         try:
-            value = movie.find(el, class_=el_class)
-            return value.text.strip() if value else None
-        except AttributeError as e:
-            logging.warning(f"Attribute error when fetching: {e}")
+            response = self.session.get(url)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, "html.parser")
+            return soup
+        except requests.RequestException as e:
+            logging.error(f"Request error when fetching: {e}")
         return None
 
-    try:
-        raw_movie_name = _get_value("h3", "c-finderProductCard_titleHeading")
-        movie_name = re.sub(r"\d+,\d*\.|\d+\.", "", raw_movie_name).strip().upper() if raw_movie_name else ""
-
-        raw_movie_date = _get_value("div", "c-finderProductCard_meta")
-        movie_year = int(re.findall(r"\d{4}", raw_movie_date)[0]) if raw_movie_date else -1
-
-        raw_movie_score = _get_value("span", "c-finderProductCard_score")
-        movie_score = int(re.findall(r"\d{1,3}", raw_movie_score)[0]) if raw_movie_score else -1
-
-        if not all([movie_name, movie_year != -1, movie_score != -1]):
-            raise ValueError("Incomplete data for movie")
-    except ValueError as e:
-        logging.error(f"Data validation error: {e}")
-        return None
-
-    return [movie_name, movie_year, movie_score]
-
-
-def scrape_page(page_number):
-    logging.info(f"Scraping page {page_number}")
-    soup = get_page_content(f"{BASE_URL}?page={page_number}")
-
-    if soup:
-        movie_cards = soup.find_all("div", class_="c-finderProductCard")
-        return [get_movie_data(movie) for movie in movie_cards]
-
-    logging.warning(f"No content found for page {page_number}")
-    return []
-
-
-def write_to_csv(new_movies):
-    try:
-        existing_df = pd.read_csv("output/movies.csv")
-    except FileNotFoundError:
-        existing_df = pd.DataFrame(columns=["name", "year", "rating"])
-
-    new_df = pd.DataFrame(new_movies, columns=["name", "year", "rating"])
-    combined_df = pd.concat([existing_df, new_df])
-
-    final_df = combined_df.drop_duplicates(subset=["name", "year"], keep="first")
-    final_df = final_df.sort_values(by=["rating"], ascending=False)
-
-    final_df.to_csv("output/movies.csv", index=False)
-
-
-def get_total_pages():
-    logging.info("Fetching total pages number")
-    soup = get_page_content(BASE_URL)
-
-    if soup:
-        pagination = soup.find_all("span", "c-navigationPagination_item--page")
-        last_page_number = int(pagination[-1].text) if pagination else 1
-        return last_page_number + 1
-
-    return 1
-
-
-def create_distribution_ratings_histogram_chart(df):
-    return px.histogram(df, x="rating", nbins=30, title="Distribution of Movie Ratings")
-
-
-def create_most_popular_per_decade_bar_chart(df: pd.DataFrame):
-    df["decade"] = (df["year"] // 10) * 10
-    most_popular_per_decade = df.sort_values(by=["decade", "rating"], ascending=[True, False]).groupby("decade").head(3)
-
-    fig = px.bar(
-        most_popular_per_decade,
-        x="decade",
-        y="rating",
-        hover_data=["name", "year", "rating"],
-        color="rating",
-        labels={"decade": "Decade", "rating": "Rating", "name": "Movie Name"},
-        title="Most Popular Movies per Decade",
-    )
-
-    fig.update_traces(
-        hovertemplate="Name: %{customdata[0]}<br>Year: %{customdata[1]}",
-        texttemplate="%{x}<br>%{y}",
-        textposition="outside",
-        textfont_size=10,
-    )
-
-    return fig
-
-
-def create_perfect_classifications_line_chart(df: pd.DataFrame):
-    max_rating = df["rating"].max()
-    max_rating_movies = df[df["rating"] == max_rating]
-    max_rating_movies["decade"] = (max_rating_movies["year"] // 10) * 10
-
-    trends_by_decade = max_rating_movies["decade"].value_counts().sort_index()
-
-    fig = px.scatter(trends_by_decade, x=trends_by_decade.index, y=trends_by_decade.values)
-    fig.update_layout(
-        xaxis_title="Decade",
-        yaxis_title="Number of Movies",
-        title="Number of Perfectly Rated Movies per Decade",
-    )
-    fig.update_traces(mode="lines+markers")
-    return fig
-
-
-def main():
-    # Scraping movies
-    tasks = []
-    total_pages = get_total_pages()
-    num_workers = os.cpu_count() * 2
-
-    with ThreadPoolExecutor(max_workers=num_workers) as executor:
-        for page_num in range(total_pages):
-            future = executor.submit(scrape_page, page_num)
-            tasks.append(future)
-
-    all_movies = []
-    for future in as_completed(tasks):
+    @staticmethod
+    def get_movie_data(movie_html):
         try:
-            result = future.result()
-            all_movies.extend(movie for movie in result if movie is not None)
-        except Exception as e:
-            logging.error(f"An error occurred with a task: {e}")
+            title_element = movie_html.find("h3", class_="c-finderProductCard_titleHeading")
+            title = re.sub(r'^\d+\.\s', '', title_element.text.strip().upper()) if title_element else None
 
-    write_to_csv(all_movies)
-    logging.info("Scraping complete. Data saved to movies.csv")
+            meta_element = movie_html.find("div", class_="c-finderProductCard_meta")
+            year = int(re.search(r'\d{4}', meta_element.text).group()) if meta_element else None
 
-    # Loading data from CSV
-    movies_df = pd.read_csv("output/movies.csv")
+            score_element = movie_html.find("span", class_="c-finderProductCard_score")
+            cleaned_score_el = re.sub(r'\D', '', score_element.text) if score_element else None
+            score = int(cleaned_score_el) if cleaned_score_el else None
 
-    # Creating charts
-    create_distribution_ratings_histogram_chart(movies_df).show()
-    create_most_popular_per_decade_bar_chart(movies_df).show()
-    create_perfect_classifications_line_chart(movies_df).show()
+            return [title, year, score]
+        except (AttributeError, ValueError) as e:
+            logging.error(f"Error parsing movie data: {e}")
+            return None
+
+    def scrape_page(self, page_number):
+        logging.info(f"Scraping page {page_number}")
+        page_url = f"{self.BASE_URL}?page={page_number}"
+        soup = self.get_page_content(page_url)
+
+        if soup:
+            movie_cards = soup.find_all("div", class_="c-finderProductCard")
+            movie_data = [self.get_movie_data(movie) for movie in movie_cards if movie]
+            return [data for data in movie_data if data]
+        logging.warning(f"No content found for page {page_number}")
+        return []
+
+    def get_total_pages(self):
+        logging.info("Fetching total pages number")
+        soup = self.get_page_content(self.BASE_URL)
+
+        if soup:
+            pagination = soup.find_all("span", "c-navigationPagination_item--page")
+            last_page_number = int(pagination[-1].text) if pagination else 1
+            return last_page_number + 1
+
+        return 1
+
+
+class DataWriter:
+    def __init__(self):
+        username = os.getenv('DB_USERNAME')
+        password = os.getenv('DB_PASSWORD')
+        self.engine = create_engine(f'postgresql://{username}:{password}@localhost:5432/postgres')
+
+    def write_to_postgres(self, new_movies):
+        new_df = pd.DataFrame(new_movies, columns=["name", "year", "metascore"])
+
+        # Load existing data from PostgreSQL table if it exists
+        try:
+            existing_df = pd.read_sql_table('movies', self.engine)
+        except ValueError:
+            existing_df = pd.DataFrame(columns=["name", "year", "metascore"])
+
+        # Combine new data with existing data
+        combined_df = pd.concat([existing_df, new_df])
+
+        # Remove duplicates and sort
+        final_df = combined_df.drop_duplicates(subset=["name", "year"], keep="first")
+        final_df = final_df.dropna(inplace=False)
+        final_df = final_df.sort_values(by=["metascore"], ascending=False)
+
+        # Write final DataFrame to PostgreSQL table, replacing existing content
+        final_df.to_sql('movies', self.engine, schema='projects', if_exists='replace', index=False)
+
+
+class MovieScraper:
+    def __init__(self):
+        self.scraper = Scraper()
+        self.data_writer = DataWriter()
+
+    def scrape_movies(self):
+        tasks = []
+        total_pages = self.scraper.get_total_pages()
+        num_workers = os.cpu_count() * 2
+
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            for page_num in range(total_pages):
+                future = executor.submit(self.scraper.scrape_page, page_num)
+                tasks.append(future)
+
+        all_movies = []
+        for future in as_completed(tasks):
+            logging.debug(future.result())
+            try:
+                result = future.result()
+                if result:
+                    all_movies.extend(movie for movie in result if movie is not None)
+            except Exception as e:
+                logging.error(f"An error occurred with a task: {e}")
+
+        self.data_writer.write_to_postgres(all_movies)
+        logging.info("Scraping complete. Data stored into movies table in PostgreSQL")
+
+    def main(self):
+        self.scrape_movies()
 
 
 if __name__ == "__main__":
-    main()
+    movie_scraper = MovieScraper()
+    movie_scraper.main()
