@@ -11,6 +11,8 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from sqlalchemy import create_engine
 
+import utils
+
 
 class Scraper:
     def __init__(self):
@@ -41,10 +43,10 @@ class Scraper:
             title = title_element.text.split(".", 1)[1].strip().upper() if title_element else None
 
             meta_element = movie_html.find("div", class_="c-finderProductCard_meta")
-            year = int(re.search(r'\d{4}', meta_element.text).group()) if meta_element else None
+            year = int(re.search(r"\d{4}", meta_element.text).group()) if meta_element else None
 
             score_element = movie_html.find("span", class_="c-finderProductCard_score")
-            cleaned_score_el = re.sub(r'\D', '', score_element.text) if score_element else None
+            cleaned_score_el = re.sub(r"\D", "", score_element.text) if score_element else None
             score = int(cleaned_score_el) if cleaned_score_el else None
 
             return [title, year, score]
@@ -78,15 +80,15 @@ class Scraper:
 
 class DataWriter:
     def __init__(self):
-        username = os.getenv('DB_USERNAME')
-        password = os.getenv('DB_PASSWORD')
-        self.engine = create_engine(f'postgresql://{username}:{password}@localhost:5432/postgres')
+        username = os.getenv("DB_USERNAME")
+        password = os.getenv("DB_PASSWORD")
+        self.engine = create_engine(f"postgresql://{username}:{password}@localhost:5432/postgres")
 
     def write_to_postgres(self, new_movies):
         new_df = pd.DataFrame(new_movies, columns=["title", "year", "metascore"])
 
         try:
-            existing_df = pd.read_sql_table('movies', self.engine)
+            existing_df = pd.read_sql_table("movies", self.engine)
         except ValueError:
             existing_df = pd.DataFrame(columns=["title", "year", "metascore"])
 
@@ -96,7 +98,12 @@ class DataWriter:
         final_df = final_df.dropna(inplace=False)
         final_df = final_df.sort_values(by=["metascore"], ascending=False)
 
-        final_df.to_sql('movies', self.engine, schema='projects', if_exists='replace', index=False)
+        final_df["_id"] = final_df.apply(utils.hash_record, axis=1)
+        cols = list(final_df.columns)
+        cols.remove("_id")
+        cols = ['_id'] + cols
+        final_df = final_df.reindex(columns=cols)
+        final_df.to_sql("movies", self.engine, schema="projects", if_exists="replace", index=False)
 
 
 class MovieScraper:
@@ -110,13 +117,12 @@ class MovieScraper:
         num_workers = os.cpu_count() * 2
 
         with ThreadPoolExecutor(max_workers=num_workers) as executor:
-            for page_num in range(total_pages):
+            for page_num in range(total_pages-1):
                 future = executor.submit(self.scraper.scrape_page, page_num)
                 tasks.append(future)
 
         all_movies = []
         for future in as_completed(tasks):
-            logging.debug(future.result())
             try:
                 result = future.result()
                 if result:
